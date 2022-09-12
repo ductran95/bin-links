@@ -1,5 +1,5 @@
 {
-  "name": "bin-links",
+  "name": "bin-links-fix-fat32",
   "version": "3.0.3",
   "description": "JavaScript package binary linker",
   "main": "./lib/index.js",
@@ -17,7 +17,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/npm/bin-links.git"
+    "url": "https://github.com/ductran95/bin-links.git"
   },
   "keywords": [
     "npm",

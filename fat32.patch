@@ -1,0 +1,103 @@
+diff --git a/lib/check-bin.js b/lib/check-bin.js
+index 750a34f..e0adf47 100644
+--- a/lib/check-bin.js
++++ b/lib/check-bin.js
+@@ -1,6 +1,7 @@
+ // check to see if a bin is allowed to be overwritten
+ // either rejects or resolves to nothing.  return value not relevant.
+ const isWindows = require('./is-windows.js')
++const isSymlinkSupported = require('./is-symlink-supported.js')
+ const binTarget = require('./bin-target.js')
+ const { resolve, dirname } = require('path')
+ const readCmdShim = require('read-cmd-shim')
+@@ -18,7 +19,8 @@ const checkBin = async ({ bin, path, top, global, force }) => {
+   // ok, need to make sure, then
+   const target = resolve(binTarget({ path, top }), bin)
+   path = resolve(path)
+-  return isWindows ? checkShim({ target, path }) : checkLink({ target, path })
++  return isWindows || !isSymlinkSupported
++    ? checkShim({ target, path }) : checkLink({ target, path })
+ }
+ 
+ // only enoent is allowed.  anything else is a problem.
+diff --git a/lib/get-paths.js b/lib/get-paths.js
+index b93e698..7791aba 100644
+--- a/lib/get-paths.js
++++ b/lib/get-paths.js
+@@ -5,6 +5,7 @@ const binTarget = require('./bin-target.js')
+ const manTarget = require('./man-target.js')
+ const { resolve, basename, extname } = require('path')
+ const isWindows = require('./is-windows.js')
++const isSymlinkSupported = require('./is-symlink-supported.js')
+ module.exports = ({ path, pkg, global, top }) => {
+   if (top && !global) {
+     return []
+@@ -16,7 +17,7 @@ module.exports = ({ path, pkg, global, top }) => {
+     for (const bin of Object.keys(pkg.bin)) {
+       const b = resolve(binTarg, bin)
+       binSet.push(b)
+-      if (isWindows) {
++      if (isWindows || !isSymlinkSupported) {
+         binSet.push(b + '.cmd')
+         binSet.push(b + '.ps1')
+       }
+diff --git a/lib/is-symlink-supported.js b/lib/is-symlink-supported.js
+new file mode 100644
+index 0000000..7e223f7
+--- /dev/null
++++ b/lib/is-symlink-supported.js
+@@ -0,0 +1,39 @@
++const fs = require('fs')
++let symLinkSupported = null
++module.exports =
++  symLinkSupported != null
++    ? symLinkSupported
++    : (symLinkSupported = checkSymLink())
++
++function checkSymLink () {
++  var canLinkSrc = tmpName()
++  var canLinkDest = tmpName()
++
++  try {
++    fs.writeFileSync(canLinkSrc, '')
++  } catch (e) {
++    return false
++  }
++
++  try {
++    fs.symlinkSync(canLinkSrc, canLinkDest)
++  } catch (e) {
++    fs.unlinkSync(canLinkSrc)
++    return false
++  }
++
++  console.log('canLinkSrc', canLinkSrc)
++  console.log('canLinkDest', canLinkDest)
++
++  fs.unlinkSync(canLinkSrc)
++  fs.unlinkSync(canLinkDest)
++
++  return true
++}
++
++function tmpName () {
++  return (
++    Math.random().toString(36).substring(2, 15) +
++    Math.random().toString(23).substring(2, 5)
++  )
++}
+diff --git a/lib/link-bins.js b/lib/link-bins.js
+index 9bf7d72..18e5db3 100644
+--- a/lib/link-bins.js
++++ b/lib/link-bins.js
+@@ -1,7 +1,9 @@
+ const isWindows = require('./is-windows.js')
++const isSymlinkSupported = require('./is-symlink-supported.js')
+ const binTarget = require('./bin-target.js')
+ const { dirname, resolve, relative } = require('path')
+-const linkBin = isWindows ? require('./shim-bin.js') : require('./link-bin.js')
++const linkBin = isWindows || !isSymlinkSupported
++  ? require('./shim-bin.js') : require('./link-bin.js')
+ const normalize = require('npm-normalize-package-bin')
+ 
+ const linkBins = ({ path, pkg, top, force }) => {
